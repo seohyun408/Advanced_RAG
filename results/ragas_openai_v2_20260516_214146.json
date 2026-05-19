@@ -1,0 +1,10 @@
+{
+  "evaluated_at": "20260516_214146",
+  "experiment": "openai_v2",
+  "num_samples": 5,
+  "scores": {
+    "faithfulness": 0.9846153846153847,
+    "answer_relevancy": 0.5870392027496136,
+    "context_precision": 0.99999999998
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "evaluated_at": "20260516_214800",
+  "experiment": "gemini_v2",
+  "num_samples": 5,
+  "scores": {
+    "faithfulness": 0.7992451690821256,
+    "answer_relevancy": 0.7997169315717925,
+    "context_precision": 0.827777777729074
+  }
+}

@@ -1,6 +1,12 @@
 # Seohyun 
+data/
 log/
+cache/
+chroma_db/
 *.log
+temp.md
+.claude
+temp.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
