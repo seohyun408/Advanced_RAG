@@ -3,6 +3,7 @@ data/
 log/
 cache/
 chroma_db/
+results/
 *.log
 temp.md
 .claude
