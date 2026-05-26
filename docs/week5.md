@@ -64,16 +64,19 @@ Hybrid + Re-ranker 방식은 Answer Relevancy가 다소 감소하였지만, 모�
     - Answer Relevancy 0.680, Faithfulness 0.666으로 전 지표 최하위
     - 동의어·문맥 질문에 취약, 단독 사용 불가 판단
 - 선택하지 않은 옵션: Baseline Dense
+    - 높지않은 Faithfulness, 할루시네이션 발생 위험
 - 선택하지 않은 옵션: Hybrid Retrieval 
-    - 할루시네이션 발생 위험
+
 
 ## 4. Future Work
-Agentic RAG로 풀어가면 좋을 문제 
 
-- (비교 질문) 전세권 설정등기와 임차권 등기의 차이점은 무엇인가요?
-    - '등기'와 같은 공통 기쿼드 때문에 관련 없는 섹션이 검색될 수 있음 
-    - Query 분해 필요할 것 같음
-- (복합 조건) 미성년자가 상속으로 부동산을 취득했을 때 등기 신청은 누가 하나요?
-- (관련 정보가 여러 Section에 분산된 경우)
+- Agentic RAG로 풀어가면 좋을 문제 
+    - (비교 질문) 전세권 설정등기와 임차권 등기의 차이점은 무엇인가요?
+    - (복합 조건) 미성년자가 상속으로 부동산을 취득했을 때 등기 신청은 누가 하나요?
+    - (관련 정보가 여러 Section에 분산된 경우)
+- Self-Query Retriever (메타데이터 필터링)
+- `main` 파일에 구현 & 정리
+
+
 
 
