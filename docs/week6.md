@@ -110,15 +110,15 @@ class GraphState(TypedDict):
 
     grade_documents["grade_documents\n---\nLLM Judge (Structured Output)\n상위 3개 문서 미리보기로 관련성 판단\n→ sufficient / insufficient"]
 
-    grade_documents -->|"grade == sufficient"| generate
-    grade_documents -->|"grade == insufficient\n&& retry_count < MAX_RETRIES"| rewrite_query
-    grade_documents -->|"grade == insufficient\n&& retry_count >= MAX_RETRIES"| generate
+    grade_documents -->|"grade == yes"| generate
+    grade_documents -->|"grade == no\n&& retry_count < MAX_RETRIES"| rewrite_query
+    grade_documents -->|"grade == no\n&& retry_count >= MAX_RETRIES"| generate
 
     rewrite_query["rewrite_query\n---\nLLM으로 질문 재작성\n법률 키워드 추가, 구체화\nretry_count += 1"]
 
     rewrite_query --> retrieve
 
-    generate["generate\n---\n(grade == sufficient) → context 기반 답변 생성\n(grade == insufficient) → 답변 불가 처리\n'제공된 문서에서 확인할 수 없습니다.'"]
+    generate["generate\n---\n(grade == yes) → context 기반 답변 생성\n(grade == no) → 답변 불가 처리\n'제공된 문서에서 확인할 수 없습니다.'"]
 
     generate --> END([END])
     ```
@@ -128,6 +128,30 @@ class GraphState(TypedDict):
 
 ## 3. Main Result (Latency 측정 추가)
 
+- 테스트 질문 5개 기준 RAGAS 평가 결과
+
+| 구성 | Faithfulness | Answer Relevancy | Context Precision | 평균 Latency(s) |
+|------|:---:|:---:|:---:|:---:|
+| Baseline (Hybrid+Reranker) | 0.597 | **0.822** | **0.580** | 182.30 |
+| Agentic RAG (LangGraph) | **0.703** | 0.809 | 0.407 | 179.08 |
+
+**Retry 통계** (Agentic RAG 기준)
+
+| 재시도 횟수 | 건수 |
+|:---:|:---:|
+| 0회 | 4건 |
+| 1회 | 1건 |
+| 2회 | 0건 |
+
+- Q1 ("부모님이 살아계실 때 집을 미리 자식한테 넘겨주고 싶대요...")만 재시도 1회 발생
+  - 원래 구어체 질문 → "부모가 생전에 자녀에게 부동산을 증여하고자 할 때, 상속과의 차이점은 무엇이며, 해당 부동산의 증여등기 절차는 어떻게 진행되나요?" 로 재작성 후 grade=yes 통과
+
+**분석**
+
+- **Faithfulness (0.597 → 0.703)**: Agentic RAG 개선
+- **Answer Relevancy (0.822 → 0.809)**: Query 재작성하면서 원래 질문의 의도가 바뀔 가능성
+- **Context Precision (0.580 → 0.407)**: 
+- **Latency**: 두 방식이 유사. 대부분의 질문이 재시도 없이 처리되어 차이가 크지 않았음
 
 
 
@@ -135,20 +159,26 @@ class GraphState(TypedDict):
 
 
 ---
+---
 
-## 3. Reflect 추가 
+## 4. Reflect 추가 
 
 > retrieve → grade_documents → rewrite_query → generate → reflect
 
+- **Reflect Node**: generate 이후 생성된 답변이 질문에 충분히 답하고 있는지 LLM이 자체 검토
+- grade_documents가 "문서가 관련 있는가"를 판단한다면, reflect는 "생성된 답변이 충분한가"를 판단
 
-
----
-
-## 4. Main Result
-
+```
+grade='yes' → generate → reflect
+                           ↓ (답변 불충분)
+                        rewrite_query → retrieve → grade → generate → reflect
+                           ↓ (답변 충분 또는 MAX_RETRIES 도달)
+                          END
+```
 
 
 ---
 
 ## 5. Self-RAG & CRAG
+
 
