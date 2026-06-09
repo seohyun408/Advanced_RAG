@@ -75,3 +75,20 @@ def get_breadcrumb(num: str, all_headings: dict) -> str:
             crumbs.append(all_headings[prefix])
     return " > ".join(crumbs)
 
+
+def get_breadcrumb_for_page(page_num: int, sections: list, all_headings: dict) -> tuple:
+    """
+    페이지 번호 → (section_num, breadcrumb) 반환.
+    start_page <= page_num 인 섹션 중 가장 마지막 섹션을 사용.
+    """
+    active = None
+    for s in sorted(sections, key=lambda x: x["start_page"]):
+        if s["start_page"] <= page_num:
+            active = s
+        else:
+            break
+    if active is None:
+        return "", ""
+    num = active["num"]
+    return num, get_breadcrumb(num, all_headings)
+

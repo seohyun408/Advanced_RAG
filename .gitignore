@@ -9,6 +9,7 @@ results/
 temp.md
 .claude
 temp.ipynb
+AGENTS.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
