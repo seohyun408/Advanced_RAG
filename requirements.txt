@@ -1,0 +1,31 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-dotenv>=1.0.0
+
+# LangChain
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-openai>=0.1.0
+langchain-chroma>=0.1.0
+langchain-community>=0.2.0
+langchain-text-splitters>=0.2.0
+langgraph>=0.1.0
+
+# 노트북에서 langchain_classic.retrievers.EnsembleRetriever 사용 중
+# 설치 실패 시 langchain.retrievers.EnsembleRetriever로 자동 폴백됨 (app/retriever.py)
+langchain-classic
+
+# Vector DB
+qdrant-client>=1.9.0
+langchain-qdrant>=0.1.0
+chromadb>=0.5.0  # upload_to_qdrant.py 스크립트에서만 사용 (마이그레이션 완료 후 제거 가능)
+
+# Embeddings
+openai>=1.0.0
+
+# BM25
+rank-bm25>=0.2.2
+
+# Pydantic
+pydantic>=2.0.0
+typing-extensions>=4.0.0

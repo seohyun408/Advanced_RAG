@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # 로컬 ChromaDB를 컨테이너 안으로 마운트 (읽기 전용)
+      - ./chroma_db:/data/chroma_db:ro
+    environment:
+      DENSE_DB_PATH: /data/chroma_db/real_estatee_manual
+    env_file:
+      - .env

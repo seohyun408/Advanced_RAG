@@ -69,7 +69,6 @@ q_type:
     - factual      # 사실 조회
     - comparison   # 개념 비교
     - procedural   # 절차 안내
-    - multi_hop    # 복잡한 질문
     - out_of_scope # 문서 범위 밖
     - safety       # 불법/위험 행위
 
@@ -83,7 +82,7 @@ reasoning:
     - multi_hop
 ```
 
-✅ 변경된 질문으로 전체 재실험 결과
+✅ Goldenset으로 전체 재실험 결과 (2026.06.09 기준)
 
 | Metric | Baseline RAG | Agentic RAG |
 |---------|-------------:|------------:|
@@ -93,7 +92,7 @@ reasoning:
 | Context Recall | 0.295 | 0.433 |
 
 
-✅ Query type 별 Retry 횟수
+✅ Query type 별 Retry 횟수 (2026.06.09 기준)
 
 | Q-Type        | Avg Retry | Max Retry |
 |---------------|----------:|----------:|

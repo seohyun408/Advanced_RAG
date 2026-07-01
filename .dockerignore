@@ -1,0 +1,12 @@
+.env
+*.env
+chroma_db/
+data/
+notebooks/
+temp/
+scripts/
+__pycache__/
+**/__pycache__/
+*.pyc
+.git/
+.claude/
