@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app import jobs
 from app.supervisor import run_assistant
 
 
@@ -14,6 +16,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="부동산 등기 어시스턴트", lifespan=lifespan)
+
+# 프론트엔드(다른 origin)에서의 호출 허용. 운영 배포 시 도메인으로 좁힐 것.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class QueryRequest(BaseModel):
@@ -32,3 +42,21 @@ def ask(req: QueryRequest):
         "output": result["output"],
         "route": result["route_history"],
     }
+
+
+@app.post("/jobs")
+def create_job(req: QueryRequest):
+    job_id = jobs.submit_job(req.user_input, runner=run_assistant)
+    return {"job_id": job_id, "status": "queued"}
+
+
+@app.get("/jobs/{job_id}")
+def read_job(job_id: str):
+    job = jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    resp = {"status": job["status"]}
+    for key in ("output", "route", "error"):
+        if key in job:
+            resp[key] = job[key]
+    return resp
