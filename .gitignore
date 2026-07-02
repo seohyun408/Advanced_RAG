@@ -1,6 +1,9 @@
-# Seohyun 
+# Seohyun
 temp/
 data/
+# app/data는 앱 필수 파일이므로 data/ 제외에서 복원
+!app/data/
+!app/data/**
 log/
 cache/
 chroma_db/
