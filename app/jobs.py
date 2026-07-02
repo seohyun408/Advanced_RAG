@@ -1,64 +1,105 @@
-"""인메모리 job 저장소.
+"""SQS(작업 큐) + DynamoDB(결과 저장소) 기반 job 저장소.
 
-SQS 전환 시 submit_job(제출)과 get_job(조회) 내부만 교체한다:
-submit → SQS SendMessage, get → 결과 저장소(DynamoDB 등) 조회.
+- submit_job: DynamoDB에 queued 레코드 write + SQS에 job_id 발행 (실행 안 함)
+- 워커(app/worker.py)가 SQS를 폴링해 claim_and_store로 실행/결과 기록
+- get_job: DynamoDB 조회 (프론트 polling 대상)
 """
 
-import threading
+import os
 import time
 import uuid
 from typing import Callable, Optional
 
+import boto3
+
+REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
+QUEUE_URL = os.environ.get("JOB_QUEUE_URL", "")
+TABLE_NAME = os.environ.get("JOB_TABLE_NAME", "realestate-jobs")
 _JOB_TTL_SECONDS = 3600
 
-_jobs: dict = {}
-_lock = threading.Lock()
+_sqs = None
+_table = None
 
 
-def submit_job(user_input: str, runner: Callable[[str], dict]) -> str:
-    """질문을 큐에 넣고 job_id를 즉시 반환. runner는 백그라운드 스레드에서 실행."""
+def _get_sqs():
+    global _sqs
+    if _sqs is None:
+        _sqs = boto3.client("sqs", region_name=REGION)
+    return _sqs
+
+
+def _get_table():
+    global _table
+    if _table is None:
+        _table = boto3.resource("dynamodb", region_name=REGION).Table(TABLE_NAME)
+    return _table
+
+
+def submit_job(user_input: str) -> str:
+    """DynamoDB에 queued 레코드를 쓰고 SQS에 job_id를 발행. 즉시 job_id 반환."""
     job_id = uuid.uuid4().hex
-    with _lock:
-        _cleanup_expired()
-        _jobs[job_id] = {"status": "queued", "created_at": time.time()}
-    threading.Thread(
-        target=_run_job, args=(job_id, user_input, runner), daemon=True
-    ).start()
+    now = int(time.time())
+    _get_table().put_item(
+        Item={
+            "job_id": job_id,
+            "status": "queued",
+            "user_input": user_input,
+            "created_at": now,
+            "expires_at": now + _JOB_TTL_SECONDS,
+        }
+    )
+    _get_sqs().send_message(QueueUrl=QUEUE_URL, MessageBody=job_id)
     return job_id
 
 
 def get_job(job_id: str) -> Optional[dict]:
-    with _lock:
-        _cleanup_expired()
-        job = _jobs.get(job_id)
-        return dict(job) if job else None
+    resp = _get_table().get_item(Key={"job_id": job_id})
+    item = resp.get("Item")
+    if not item:
+        return None
+    result = {"status": item["status"]}
+    for key in ("output", "route", "error"):
+        if key in item:
+            result[key] = item[key]
+    return result
 
 
-def _run_job(job_id: str, user_input: str, runner: Callable[[str], dict]) -> None:
-    with _lock:
-        if job_id not in _jobs:
-            return
-        _jobs[job_id]["status"] = "running"
+def get_user_input(job_id: str) -> Optional[str]:
+    """워커가 큐에서 받은 job_id로 원본 질문을 조회."""
+    resp = _get_table().get_item(Key={"job_id": job_id})
+    item = resp.get("Item")
+    return item.get("user_input") if item else None
+
+
+def mark_running(job_id: str) -> None:
+    _update(job_id, {"status": "running"})
+
+
+def store_result(job_id: str, output: str, route: list) -> None:
+    _update(job_id, {"status": "done", "output": output, "route": route})
+
+
+def store_error(job_id: str, message: str) -> None:
+    _update(job_id, {"status": "error", "error": message})
+
+
+def claim_and_store(job_id: str, runner: Callable[[], dict]) -> None:
+    """워커가 호출: runner() 실행 결과/오류를 DynamoDB에 기록."""
+    mark_running(job_id)
     try:
-        result = runner(user_input)
-        update = {
-            "status": "done",
-            "output": result["output"],
-            "route": result["route_history"],
-        }
-    except Exception as e:  # noqa: BLE001 — job 단위 격리를 위해 모든 예외 수집
-        update = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-    with _lock:
-        if job_id in _jobs:
-            _jobs[job_id].update(update)
+        result = runner()
+        store_result(job_id, result["output"], result["route_history"])
+    except Exception as e:  # noqa: BLE001 — job 단위 격리
+        store_error(job_id, f"{type(e).__name__}: {e}")
 
 
-def _cleanup_expired() -> None:
-    # 호출자가 _lock을 이미 잡고 있어야 한다.
-    now = time.time()
-    for jid in [
-        jid
-        for jid, j in _jobs.items()
-        if j["status"] in ("done", "error") and now - j["created_at"] > _JOB_TTL_SECONDS
-    ]:
-        del _jobs[jid]
+def _update(job_id: str, fields: dict) -> None:
+    names = {f"#{k}": k for k in fields}
+    values = {f":{k}": v for k, v in fields.items()}
+    expr = "SET " + ", ".join(f"#{k} = :{k}" for k in fields)
+    _get_table().update_item(
+        Key={"job_id": job_id},
+        UpdateExpression=expr,
+        ExpressionAttributeNames=names,
+        ExpressionAttributeValues=values,
+    )

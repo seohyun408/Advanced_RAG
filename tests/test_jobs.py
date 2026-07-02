@@ -1,44 +1,92 @@
-import time
-
-from app import jobs
+import app.jobs as jobs
 
 
-def _wait_for(job_id, status, timeout=5):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        job = jobs.get_job(job_id)
-        if job and job["status"] == status:
-            return job
-        time.sleep(0.05)
-    raise AssertionError(f"job did not reach {status} in {timeout}s: {jobs.get_job(job_id)}")
+class FakeTable:
+    def __init__(self):
+        self.items = {}
+
+    def put_item(self, Item):
+        self.items[Item["job_id"]] = dict(Item)
+
+    def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ExpressionAttributeNames=None):
+        # 테스트용 단순화: store_* 헬퍼가 넣는 필드만 반영
+        item = self.items[Key["job_id"]]
+        for placeholder, value in ExpressionAttributeValues.items():
+            field = placeholder.lstrip(":")
+            item[field] = value
+
+    def get_item(self, Key):
+        item = self.items.get(Key["job_id"])
+        return {"Item": item} if item else {}
 
 
-def test_submit_returns_id_and_completes():
-    job_id = jobs.submit_job(
-        "질문", runner=lambda q: {"output": f"답변:{q}", "route_history": ["planner→rag"]}
-    )
+class FakeQueue:
+    def __init__(self):
+        self.sent = []
+
+    def send_message(self, QueueUrl, MessageBody):
+        self.sent.append(MessageBody)
+        return {"MessageId": "fake"}
+
+
+def _install_fakes(monkeypatch):
+    table = FakeTable()
+    queue = FakeQueue()
+    monkeypatch.setattr(jobs, "_get_table", lambda: table)
+    monkeypatch.setattr(jobs, "_get_sqs", lambda: queue)
+    monkeypatch.setattr(jobs, "QUEUE_URL", "http://fake-queue")
+    return table, queue
+
+
+def test_submit_writes_queued_and_enqueues(monkeypatch):
+    table, queue = _install_fakes(monkeypatch)
+    job_id = jobs.submit_job("등기 질문")
     assert isinstance(job_id, str) and job_id
-    job = _wait_for(job_id, "done")
-    assert job["output"] == "답변:질문"
-    assert job["route"] == ["planner→rag"]
+    assert table.items[job_id]["status"] == "queued"
+    assert queue.sent == [job_id]
 
 
-def test_runner_error_sets_error_status():
-    def boom(q):
-        raise RuntimeError("LLM down")
+def test_get_job_returns_stored_fields(monkeypatch):
+    table, _ = _install_fakes(monkeypatch)
+    job_id = jobs.submit_job("q")
+    jobs.store_result(job_id, "답변", ["planner→rag", "rag"])
+    job = jobs.get_job(job_id)
+    assert job["status"] == "done"
+    assert job["output"] == "답변"
+    assert job["route"] == ["planner→rag", "rag"]
 
-    job_id = jobs.submit_job("질문", runner=boom)
-    job = _wait_for(job_id, "error")
+
+def test_store_error(monkeypatch):
+    table, _ = _install_fakes(monkeypatch)
+    job_id = jobs.submit_job("q")
+    jobs.store_error(job_id, "RuntimeError: boom")
+    job = jobs.get_job(job_id)
+    assert job["status"] == "error"
     assert "RuntimeError" in job["error"]
 
 
-def test_unknown_job_returns_none():
-    assert jobs.get_job("does-not-exist") is None
+def test_claim_and_store_runs_runner(monkeypatch):
+    table, _ = _install_fakes(monkeypatch)
+    job_id = jobs.submit_job("q")
+    jobs.claim_and_store(job_id, runner=lambda: {"output": "A", "route_history": ["rag"]})
+    job = jobs.get_job(job_id)
+    assert job["status"] == "done"
+    assert job["output"] == "A"
 
 
-def test_expired_done_job_is_cleaned():
-    job_id = jobs.submit_job("q", runner=lambda q: {"output": "a", "route_history": []})
-    _wait_for(job_id, "done")
-    with jobs._lock:
-        jobs._jobs[job_id]["created_at"] -= jobs._JOB_TTL_SECONDS + 10
-    assert jobs.get_job(job_id) is None
+def test_claim_and_store_captures_error(monkeypatch):
+    table, _ = _install_fakes(monkeypatch)
+    job_id = jobs.submit_job("q")
+
+    def boom():
+        raise RuntimeError("LLM down")
+
+    jobs.claim_and_store(job_id, runner=boom)
+    job = jobs.get_job(job_id)
+    assert job["status"] == "error"
+    assert "RuntimeError" in job["error"]
+
+
+def test_unknown_job_returns_none(monkeypatch):
+    _install_fakes(monkeypatch)
+    assert jobs.get_job("nope") is None

@@ -15,6 +15,9 @@ langgraph>=0.1.0
 # 설치 실패 시 langchain.retrievers.EnsembleRetriever로 자동 폴백됨 (app/retriever.py)
 langchain-classic
 
+# AWS (SQS job queue + DynamoDB result store)
+boto3>=1.34.0
+
 # Vector DB
 qdrant-client>=1.9.0
 langchain-qdrant>=0.1.0
