@@ -12,6 +12,9 @@ async def lifespan(app: FastAPI):
     # ChromaDB + BM25 인덱스를 서버 시작 시 미리 로드
     from app.retriever import get_retriever
     get_retriever()
+    # SQS 폴링 워커 시작 (JOB_QUEUE_URL 설정 시에만)
+    from app.worker import start_worker
+    start_worker()
     yield
 
 
@@ -46,7 +49,7 @@ def ask(req: QueryRequest):
 
 @app.post("/jobs")
 def create_job(req: QueryRequest):
-    job_id = jobs.submit_job(req.user_input, runner=run_assistant)
+    job_id = jobs.submit_job(req.user_input)
     return {"job_id": job_id, "status": "queued"}
 
 

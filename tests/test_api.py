@@ -1,5 +1,4 @@
 import os
-import time
 
 # app.main import 시 supervisor→rag_agent→retriever 체인이 env를 요구하므로 dummy 주입.
 # 실제 외부 연결은 lifespan에서만 일어나며 TestClient는 (context manager 없이) lifespan을 실행하지 않는다.
@@ -18,27 +17,29 @@ def test_health_still_works():
 
 
 def test_job_submit_and_poll(monkeypatch):
-    monkeypatch.setattr(
-        main, "run_assistant",
-        lambda q: {"output": f"echo:{q}", "route_history": ["planner→rag", "rag"]},
-    )
+    store = {}
+
+    def fake_submit(user_input):
+        store["job-1"] = {"status": "done", "output": f"echo:{user_input}",
+                          "route": ["planner→rag", "rag"]}
+        return "job-1"
+
+    monkeypatch.setattr(main.jobs, "submit_job", fake_submit)
+    monkeypatch.setattr(main.jobs, "get_job", lambda jid: store.get(jid))
+
     r = client.post("/jobs", json={"user_input": "등기 질문"})
     assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "queued"
-    job_id = body["job_id"]
+    assert r.json()["status"] == "queued"
+    job_id = r.json()["job_id"]
 
-    for _ in range(100):
-        j = client.get(f"/jobs/{job_id}").json()
-        if j["status"] == "done":
-            break
-        time.sleep(0.05)
+    j = client.get(f"/jobs/{job_id}").json()
     assert j["status"] == "done"
     assert j["output"] == "echo:등기 질문"
     assert j["route"] == ["planner→rag", "rag"]
 
 
-def test_unknown_job_is_404():
+def test_unknown_job_is_404(monkeypatch):
+    monkeypatch.setattr(main.jobs, "get_job", lambda jid: None)
     assert client.get("/jobs/nope").status_code == 404
 
 
