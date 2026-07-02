@@ -69,8 +69,15 @@ body {
   padding: 8px 4px 16px;
 }
 
-.bubble {
+.bubble-wrap {
+  display: flex;
+  flex-direction: column;
   max-width: 78%;
+}
+.bubble-wrap.user { align-self: flex-end; align-items: flex-end; }
+.bubble-wrap.assistant { align-self: flex-start; align-items: flex-start; }
+
+.bubble {
   padding: 14px 18px;
   border-radius: 18px;
   line-height: 1.65;
@@ -84,18 +91,23 @@ body {
 }
 
 .bubble.user {
-  align-self: flex-end;
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   border-bottom-right-radius: 6px;
   color: #fff;
 }
 
 .bubble.assistant {
-  align-self: flex-start;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(12px);
   border-bottom-left-radius: 6px;
+}
+
+.msg-time {
+  margin-top: 5px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  padding: 0 4px;
 }
 
 .bubble.error { border-color: rgba(248, 113, 113, 0.5); }

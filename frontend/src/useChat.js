@@ -30,7 +30,7 @@ export function useChat() {
     lastQuestionRef.current = question;
     setBusy(true);
 
-    const userMsg = { id: crypto.randomUUID(), role: "user", text: question };
+    const userMsg = { id: crypto.randomUUID(), role: "user", text: question, ts: Date.now() };
     const pendingId = crypto.randomUUID();
     setMessages((prev) => [
       ...prev,
@@ -40,7 +40,9 @@ export function useChat() {
 
     const finish = (patch) => {
       setMessages((prev) =>
-        prev.map((m) => (m.id === pendingId ? { ...m, pending: false, ...patch } : m))
+        prev.map((m) =>
+          m.id === pendingId ? { ...m, pending: false, ts: Date.now(), ...patch } : m
+        )
       );
       setBusy(false);
     };

@@ -9,7 +9,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>부동산 등기 어시스턴트</h1>
+        <h1>RegiHelper</h1>
         {messages.length > 0 && (
           <button className="clear-btn" onClick={clear} disabled={busy}>
             대화 지우기
