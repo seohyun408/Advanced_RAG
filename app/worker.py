@@ -17,7 +17,7 @@ def process_message(receipt_handle: str, job_id: str) -> None:
         # 레코드가 만료/삭제됨 — 메시지만 정리
         jobs._get_sqs().delete_message(QueueUrl=jobs.QUEUE_URL, ReceiptHandle=receipt_handle)
         return
-    jobs.claim_and_store(job_id, runner=lambda: run_assistant(user_input))
+    jobs.claim_and_store(job_id, runner=lambda: run_assistant(user_input), user_input=user_input)
     jobs._get_sqs().delete_message(QueueUrl=jobs.QUEUE_URL, ReceiptHandle=receipt_handle)
 
 

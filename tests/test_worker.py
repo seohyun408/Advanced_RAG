@@ -9,7 +9,7 @@ def test_process_one_runs_and_deletes(monkeypatch):
     monkeypatch.setattr(jobs, "get_user_input", lambda jid: "질문")
     monkeypatch.setattr(
         jobs, "claim_and_store",
-        lambda jid, runner: stored.update({jid: runner()}),
+        lambda jid, runner, user_input=None: stored.update({jid: runner()}),
     )
     monkeypatch.setattr(worker, "run_assistant", lambda q: {"output": f"A:{q}", "route_history": ["rag"]})
 

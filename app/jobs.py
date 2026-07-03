@@ -12,6 +12,8 @@ from typing import Callable, Optional
 
 import boto3
 
+from app import cache
+
 REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 QUEUE_URL = os.environ.get("JOB_QUEUE_URL", "")
 TABLE_NAME = os.environ.get("JOB_TABLE_NAME", "realestate-jobs")
@@ -36,9 +38,28 @@ def _get_table():
 
 
 def submit_job(user_input: str) -> str:
-    """DynamoDB에 queued 레코드를 쓰고 SQS에 job_id를 발행. 즉시 job_id 반환."""
+    """DynamoDB에 queued 레코드를 쓰고 SQS에 job_id를 발행. 즉시 job_id 반환.
+
+    완전일치 캐시에 같은 질문의 답변이 있으면 큐를 거치지 않고 done으로 기록한다.
+    """
     job_id = uuid.uuid4().hex
     now = int(time.time())
+
+    hit = cache.get_cached(user_input)
+    if hit is not None:
+        _get_table().put_item(
+            Item={
+                "job_id": job_id,
+                "status": "done",
+                "user_input": user_input,
+                "output": hit["output"],
+                "route": hit["route"],
+                "created_at": now,
+                "expires_at": now + _JOB_TTL_SECONDS,
+            }
+        )
+        return job_id
+
     _get_table().put_item(
         Item={
             "job_id": job_id,
@@ -83,12 +104,18 @@ def store_error(job_id: str, message: str) -> None:
     _update(job_id, {"status": "error", "error": message})
 
 
-def claim_and_store(job_id: str, runner: Callable[[], dict]) -> None:
-    """워커가 호출: runner() 실행 결과/오류를 DynamoDB에 기록."""
+def claim_and_store(job_id: str, runner: Callable[[], dict], user_input: Optional[str] = None) -> None:
+    """워커가 호출: runner() 실행 결과/오류를 DynamoDB에 기록.
+
+    user_input이 주어지고 성공하면 완전일치 캐시에도 결과를 저장한다.
+    """
     mark_running(job_id)
     try:
         result = runner()
-        store_result(job_id, result["output"], result["route_history"])
+        output, route = result["output"], result["route_history"]
+        store_result(job_id, output, route)
+        if user_input is not None:
+            cache.store_cached(user_input, output, route)
     except Exception as e:  # noqa: BLE001 — job 단위 격리
         store_error(job_id, f"{type(e).__name__}: {e}")
 
