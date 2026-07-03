@@ -5,6 +5,15 @@ const STORAGE_KEY = "registry-chat-v1";
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 90000;
 
+// crypto.randomUUID()는 HTTPS(secure context)에서만 제공된다.
+// 이 앱은 HTTP로도 서빙되므로 폴백을 둔다.
+function makeId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function loadMessages() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
@@ -30,8 +39,8 @@ export function useChat() {
     lastQuestionRef.current = question;
     setBusy(true);
 
-    const userMsg = { id: crypto.randomUUID(), role: "user", text: question, ts: Date.now() };
-    const pendingId = crypto.randomUUID();
+    const userMsg = { id: makeId(), role: "user", text: question, ts: Date.now() };
+    const pendingId = makeId();
     setMessages((prev) => [
       ...prev,
       userMsg,
