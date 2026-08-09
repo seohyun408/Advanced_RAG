@@ -124,6 +124,21 @@ def test_claim_and_store_populates_cache(monkeypatch):
     assert stored == {"q": "새 질문", "output": "새 답변", "route": ["rag"]}
 
 
+def test_claim_and_store_skips_cache_for_web_route(monkeypatch):
+    # 웹검색 보강("web") 답변은 시의성 정보라 캐시하지 않는다
+    table, _ = _install_fakes(monkeypatch)
+    called = []
+    monkeypatch.setattr(jobs.cache, "store_cached", lambda *a: called.append(a))
+    job_id = jobs.submit_job("올해 취득세율?")
+    jobs.claim_and_store(
+        job_id, user_input="올해 취득세율?",
+        runner=lambda: {"output": "답변+웹", "route_history": ["planner→rag", "rag", "web"]},
+    )
+    job = jobs.get_job(job_id)
+    assert job["status"] == "done"  # 결과 저장은 정상
+    assert called == []  # 캐시만 제외
+
+
 def test_claim_and_store_does_not_cache_on_error(monkeypatch):
     table, _ = _install_fakes(monkeypatch)
     called = []

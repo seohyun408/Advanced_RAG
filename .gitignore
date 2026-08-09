@@ -13,6 +13,10 @@ temp.md
 .claude
 temp.ipynb
 AGENTS.md
+docs/
+.github/
+tests/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

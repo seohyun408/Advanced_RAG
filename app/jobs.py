@@ -114,7 +114,8 @@ def claim_and_store(job_id: str, runner: Callable[[], dict], user_input: Optiona
         result = runner()
         output, route = result["output"], result["route_history"]
         store_result(job_id, output, route)
-        if user_input is not None:
+        # 웹검색 보강("web") 답변은 시의성 정보라 캐시하지 않는다 (최대 24h 낡는 것 방지)
+        if user_input is not None and "web" not in route:
             cache.store_cached(user_input, output, route)
     except Exception as e:  # noqa: BLE001 — job 단위 격리
         store_error(job_id, f"{type(e).__name__}: {e}")
